@@ -81,12 +81,12 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
               }
 
               /* Resetar cores escuras para preto no papel */
-              .text-white, .text-slate-200, .text-slate-300, .text-slate-400, .text-blue-100, .text-blue-200, .text-blue-300, .text-blue-400 {
+              .text-white, .text-slate-200, .text-slate-300, .text-slate-400, .text-blue-100, .text-blue-200, .text-blue-300, .text-blue-400, .text-green-300, .text-green-400, .text-yellow-300, .text-cyan-300 {
                 color: black !important;
               }
 
-              .text-slate-500 {
-                color: #444 !important;
+              .text-slate-500, .text-slate-400 {
+                color: #333 !important;
               }
 
               /* Bordas e Fundos */
@@ -110,6 +110,8 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
                 color: #000 !important;
                 margin-top: 20px !important;
                 margin-bottom: 10px !important;
+                font-size: 16px !important;
+                text-transform: uppercase !important;
               }
 
               /* Imagens */
@@ -130,8 +132,8 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
         // Remover iframe após impressão (opcional, mas bom para limpeza)
-        // setTimeout(() => document.body.removeChild(iframe), 1000);
-      }, 500);
+        setTimeout(() => document.body.removeChild(iframe), 2000);
+      }, 800);
     }
   };
 
@@ -219,8 +221,8 @@ Procuração: ${cliente.procuracao_status}
   const renderAttachmentList = (title: string, status: string, anexos: Anexo[]) => (
     <div className="border border-slate-700 rounded-xl p-4 bg-slate-800/50 hover:border-blue-500/30 transition-colors">
       <div className="flex justify-between items-center mb-3">
-        <span className="font-bold text-slate-300 text-xs uppercase tracking-wider">{title}</span>
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+        <span className="font-bold text-blue-200 text-sm uppercase tracking-wider">{title}</span>
+        <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
           status === 'Aprovado' ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 
           status === 'Recebido' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
           'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
@@ -237,7 +239,7 @@ Procuração: ${cliente.procuracao_status}
             const canPreview = isImage || isPdf;
 
             return (
-              <div key={anexo.id} className="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-slate-700 hover:bg-slate-700/50 transition-colors">
+              <div key={anexo.id} className="flex items-center gap-3 bg-slate-900/50 p-3 rounded-lg border border-slate-700 hover:bg-slate-700/50 transition-colors">
                 {/* Preview / Icon */}
                 <div 
                   className={`w-10 h-10 flex-shrink-0 bg-slate-800 rounded overflow-hidden flex items-center justify-center border border-slate-600 ${canPreview ? 'cursor-pointer hover:border-blue-400' : ''}`}
@@ -246,24 +248,24 @@ Procuração: ${cliente.procuracao_status}
                   {isImage ? (
                     <img src={anexo.dados} alt="Preview" className="w-full h-full object-cover" />
                   ) : isPdf ? (
-                    <span className="text-lg text-red-400">📄</span>
+                    <span className="text-xl text-red-400">📄</span>
                   ) : (
-                    <span className="text-lg text-slate-400">📎</span>
+                    <span className="text-xl text-slate-400">📎</span>
                   )}
                 </div>
                 
                 {/* Info */}
                 <div className="flex-grow min-w-0">
-                  <p className="text-xs font-medium text-slate-200 truncate" title={anexo.nome}>{anexo.nome}</p>
-                  <p className="text-[10px] text-slate-500">{(anexo.tamanho / 1024).toFixed(1)} KB</p>
+                  <p className="text-sm font-medium text-white truncate" title={anexo.nome}>{anexo.nome}</p>
+                  <p className="text-xs text-slate-400">{(anexo.tamanho / 1024).toFixed(1)} KB</p>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-1 no-print">
+                <div className="flex gap-2 no-print">
                   {canPreview && (
                     <button 
                       onClick={() => handlePreview(anexo)}
-                      className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-white hover:text-black transition-colors flex items-center justify-center"
+                      className="px-3 py-1.5 text-xs bg-slate-700 text-blue-200 font-bold rounded hover:bg-white hover:text-black transition-colors flex items-center justify-center"
                       title={isPdf ? "Visualizar PDF" : "Visualizar Imagem"}
                     >
                       👁️
@@ -271,7 +273,7 @@ Procuração: ${cliente.procuracao_status}
                   )}
                   <button 
                     onClick={() => downloadAnexo(anexo)}
-                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors flex items-center justify-center"
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white font-bold rounded hover:bg-blue-500 transition-colors flex items-center justify-center"
                     title="Baixar Arquivo"
                   >
                     ⬇
@@ -282,7 +284,7 @@ Procuração: ${cliente.procuracao_status}
           })}
         </div>
       ) : (
-        <p className="text-xs text-slate-600 italic text-center py-2">Nenhum arquivo anexado.</p>
+        <p className="text-sm text-slate-500 italic text-center py-2">Nenhum arquivo anexado.</p>
       )}
     </div>
   );
@@ -305,7 +307,7 @@ Procuração: ${cliente.procuracao_status}
                   <button onClick={handleCopy} className="hidden md:flex px-3 py-1.5 bg-blue-500/10 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/20 transition-colors text-xs font-bold uppercase tracking-wide items-center gap-2">
                     📋 Copiar
                   </button>
-                  <button onClick={handlePrint} className="px-3 py-1.5 bg-slate-800 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 transition-colors text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+                  <button onClick={handlePrint} className="px-3 py-1.5 bg-slate-800 text-slate-200 border border-slate-600 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-xs font-bold uppercase tracking-wide flex items-center gap-2">
                     🖨️ <span className="hidden md:inline">Imprimir / PDF</span>
                   </button>
                   <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
@@ -320,7 +322,6 @@ Procuração: ${cliente.procuracao_status}
               {/* Header for Print Only (Hidden on Screen via className logic, shown via iframe style) */}
               <div className="hidden print-header text-center mb-8 border-b-2 border-gray-800 pb-4 pt-4">
                   <div className="flex items-center justify-center gap-4 mb-2">
-                      {/* Usando imagem direta para impressão para evitar problemas de CORS com google drive */}
                       <div style={{fontSize: '24px', fontWeight: 'bold'}}>SolarTekPro</div>
                   </div>
                   <p className="text-sm text-gray-600 uppercase tracking-[0.3em]">Energias Renováveis</p>
@@ -329,24 +330,24 @@ Procuração: ${cliente.procuracao_status}
 
               {/* Section 1: Personal */}
               <section>
-                  <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-1">
+                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
                     Dados Pessoais
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-8 text-sm">
-                    <div><span className="text-xs text-slate-500 block uppercase">Nome Completo</span><span className="font-bold text-white text-base">{cliente.nome}</span></div>
-                    <div><span className="text-xs text-slate-500 block uppercase">CPF/CNPJ</span><span className="font-medium text-slate-300 font-mono">{cliente.cpf}</span></div>
-                    <div><span className="text-xs text-slate-500 block uppercase">Telefone</span><span className="font-medium text-slate-300">{cliente.telefone}</span></div>
-                    <div><span className="text-xs text-slate-500 block uppercase">Email</span><span className="font-medium text-slate-300">{cliente.email || '-'}</span></div>
-                    <div className="md:col-span-2 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
-                        <span className="text-xs text-slate-500 block uppercase mb-1">Endereço Completo</span>
-                        <span className="font-bold text-white block">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 text-base">
+                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Nome Completo</span><span className="font-bold text-white text-lg">{cliente.nome}</span></div>
+                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">CPF/CNPJ</span><span className="font-medium text-slate-200 font-mono text-lg">{cliente.cpf}</span></div>
+                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Telefone</span><span className="font-medium text-slate-200 text-lg">{cliente.telefone}</span></div>
+                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Email</span><span className="font-medium text-slate-200 text-lg">{cliente.email || '-'}</span></div>
+                    <div className="md:col-span-2 bg-slate-800/50 p-5 rounded-xl border border-slate-700">
+                        <span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Endereço Completo</span>
+                        <span className="font-bold text-white block text-lg">
                           {cliente.logradouro}, {cliente.numero} {cliente.complemento ? `- ${cliente.complemento}` : ''}
                         </span>
-                        <span className="text-slate-400 block text-sm mt-1">
+                        <span className="text-slate-300 block text-base mt-1">
                           {cliente.bairro} - {cliente.cidade} / CEP: {cliente.cep}
                         </span>
                         {cliente.ponto_referencia && (
-                          <span className="block mt-2 text-xs text-slate-500 italic border-t border-slate-700 pt-2">
+                          <span className="block mt-3 text-sm text-green-300 italic border-t border-slate-700 pt-2">
                               Ref: {cliente.ponto_referencia}
                           </span>
                         )}
@@ -355,60 +356,60 @@ Procuração: ${cliente.procuracao_status}
               </section>
 
               {/* Section 2: Technical */}
-              <section className="mt-8">
-                  <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-1">
+              <section className="mt-10">
+                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
                     Dados da Instalação
                   </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-blue-900/20 rounded-xl border border-blue-500/20">
-                    <div><span className="text-[10px] text-blue-300/70 block uppercase">UC</span><span className="font-bold text-blue-100 font-mono text-lg">{cliente.unidade_consumidora}</span></div>
-                    <div><span className="text-[10px] text-blue-300/70 block uppercase">Concessionária</span><span className="font-bold text-blue-200">{cliente.concessionaria}</span></div>
-                    <div><span className="text-[10px] text-blue-300/70 block uppercase">Disjuntor</span><span className="font-bold text-blue-200">{cliente.disjuntor_padrao}</span></div>
-                    <div><span className="text-[10px] text-blue-300/70 block uppercase">Sistema</span><span className="font-bold text-blue-200">{cliente.tipo_sistema}</span></div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 bg-blue-900/20 rounded-xl border border-blue-500/20">
+                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">UC</span><span className="font-bold text-white font-mono text-xl">{cliente.unidade_consumidora}</span></div>
+                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">Concessionária</span><span className="font-bold text-white text-lg">{cliente.concessionaria}</span></div>
+                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">Disjuntor</span><span className="font-bold text-white text-lg">{cliente.disjuntor_padrao}</span></div>
+                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">Sistema</span><span className="font-bold text-white text-lg">{cliente.tipo_sistema}</span></div>
                   </div>
               </section>
 
               {/* Section 3: Project Status */}
-              <section className="mt-8">
-                  <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-1">
+              <section className="mt-10">
+                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
                     Status do Projeto
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <span className="text-xs text-slate-500 block uppercase">Status Atual</span>
-                        <span className={`inline-block px-4 py-1.5 rounded-full text-sm font-bold mt-1 border ${
+                        <span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Status Atual</span>
+                        <span className={`inline-block px-5 py-2 rounded-full text-base font-bold mt-1 border ${
                           cliente.status === 'Concluído' ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
                         }`}>
                           {cliente.status}
                         </span>
                     </div>
                     <div>
-                        <span className="text-xs text-slate-500 block uppercase">Tempo Gasto</span>
-                        <span className="font-medium text-white">{cliente.tempo_projeto} horas</span>
+                        <span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Tempo Gasto</span>
+                        <span className="font-bold text-white text-lg">{cliente.tempo_projeto} horas</span>
                     </div>
                   </div>
                   
-                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                        <span className="text-[10px] text-slate-500 block uppercase">Entrada Homologação</span>
-                        <span className="font-bold text-slate-200">{formatDate(cliente.data_entrada_homologacao)}</span>
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                        <span className="text-xs text-slate-400 block uppercase mb-1">Entrada Homologação</span>
+                        <span className="font-bold text-white text-lg">{formatDate(cliente.data_entrada_homologacao)}</span>
                     </div>
-                    <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                        <span className="text-[10px] text-slate-500 block uppercase">Resposta Concessionária</span>
-                        <span className="font-bold text-slate-200">{formatDate(cliente.data_resposta_concessionaria)}</span>
+                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                        <span className="text-xs text-slate-400 block uppercase mb-1">Resposta Concessionária</span>
+                        <span className="font-bold text-white text-lg">{formatDate(cliente.data_resposta_concessionaria)}</span>
                     </div>
-                    <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                        <span className="text-[10px] text-slate-500 block uppercase">Data Vistoria</span>
-                        <span className="font-bold text-slate-200">{formatDate(cliente.data_vistoria)}</span>
+                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                        <span className="text-xs text-slate-400 block uppercase mb-1">Data Vistoria</span>
+                        <span className="font-bold text-white text-lg">{formatDate(cliente.data_vistoria)}</span>
                     </div>
                   </div>
               </section>
 
               {/* Section 4: Docs & Attachments */}
-              <section className="mt-8">
-                  <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-1">
+              <section className="mt-10">
+                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
                     Documentos & Anexos
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {renderAttachmentList('RG/CNH', cliente.doc_identificacao_status, cliente.anexos_identificacao)}
                       {renderAttachmentList('Conta Energia', cliente.conta_energia_status, cliente.anexos_conta)}
                       {renderAttachmentList('Procuração', cliente.procuracao_status, cliente.anexos_procuracao)}
