@@ -1,0 +1,7 @@
+{
+  "name": "Sistema de Gestão Solar",
+  "description": "Sistema completo para gestão de clientes, projetos solares e controle financeiro para engenharia em energias renováveis.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
