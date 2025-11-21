@@ -67,15 +67,17 @@ const WelcomeScreen = ({ onEnter }: { onEnter: () => void }) => {
         </div>
 
         {/* Botão de Ação - Neon */}
-        <button 
-          onClick={onEnter}
-          className="group relative inline-flex items-center justify-center px-8 py-3 text-base font-bold text-black transition-all duration-200 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full focus:outline-none hover:scale-105 hover:shadow-[0_0_30px_rgba(74,222,128,0.6)] active:scale-95"
-        >
-          <span className="mr-2">Acessar Sistema</span>
-          <svg className="w-5 h-5 text-black transition-transform duration-200 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </button>
+        <div className="mb-20"> {/* Margem inferior aumentada */}
+          <button 
+            onClick={onEnter}
+            className="group relative inline-flex items-center justify-center px-8 py-3 text-base font-bold text-black transition-all duration-200 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full focus:outline-none hover:scale-105 hover:shadow-[0_0_30px_rgba(74,222,128,0.6)] active:scale-95"
+          >
+            <span className="mr-2">Acessar Sistema</span>
+            <svg className="w-5 h-5 text-black transition-transform duration-200 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </button>
+        </div>
 
         <div className="absolute bottom-6 text-[10px] text-gray-500 flex flex-col items-center gap-1">
           <p className="tracking-widest uppercase opacity-60">SolarTekPro Technology © {new Date().getFullYear()}</p>
@@ -97,6 +99,9 @@ export default function App() {
   const [logoError, setLogoError] = useState(false);
   const [showFooter, setShowFooter] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  
+  // Estado para o modal de restauração
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -118,7 +123,6 @@ export default function App() {
   }, [lastScrollY]);
 
   const loadData = async () => {
-    // if (clientes.length === 0) setLoading(true); // Removed global loader to avoid flickering on updates
     try {
       const [c, s, d] = await Promise.all([
         StorageService.getClientes(),
@@ -141,23 +145,19 @@ export default function App() {
   };
 
   const handleDeleteCliente = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Garante que não clica na linha
-    e.preventDefault();
+    e.stopPropagation();
     
     if (window.confirm("Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.")) {
-      const backup = [...clientes];
-      
       // 1. Atualização Otimista: Remove da tela imediatamente
       setClientes(prev => prev.filter(c => c.id !== id));
 
       try {
         // 2. Executa a exclusão no banco
         await StorageService.deleteCliente(id);
-        // Não recarregamos loadData() aqui para evitar que o dado antigo volte se houver delay
       } catch (error) {
         console.error("Erro ao excluir", error);
-        alert("Erro ao excluir cliente. A lista será restaurada.");
-        setClientes(backup); // Restaura se der erro
+        alert("Erro ao excluir cliente.");
+        loadData(); // Recarrega em caso de erro
       }
     }
   };
@@ -175,7 +175,6 @@ export default function App() {
   const handleDeleteServico = async (id: string) => {
     setServicos(prev => prev.filter(s => s.id !== id));
     await StorageService.deleteServico(id);
-    // loadData(); // Removido para evitar flash
   };
   const handleSaveDespesa = async (d: Despesa) => {
     await StorageService.saveDespesa(d);
@@ -184,7 +183,6 @@ export default function App() {
   const handleDeleteDespesa = async (id: string) => {
     setDespesas(prev => prev.filter(d => d.id !== id));
     await StorageService.deleteDespesa(id);
-    // loadData(); // Removido para evitar flash
   };
   
   // --- FUNÇÕES DE BACKUP E RESTAURAÇÃO ---
@@ -205,12 +203,7 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const handleRestore = () => {
-    if (!window.confirm("⚠️ ATENÇÃO: Restaurar um backup irá SUBSTITUIR todos os dados atuais.\n\nRecomendamos fazer um backup dos dados atuais antes de continuar.\n\nDeseja prosseguir?")) {
-      return;
-    }
-
-    // Input type file invisível mas imediato
+  const processRestore = (mode: 'replace' | 'merge') => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -221,18 +214,62 @@ export default function App() {
       reader.onload = (event) => {
         try {
           const json = JSON.parse(event.target?.result as string);
-          if (json.clientes) localStorage.setItem('sgs_clientes', JSON.stringify(json.clientes));
-          if (json.servicos) localStorage.setItem('sgs_servicos', JSON.stringify(json.servicos));
-          if (json.despesas) localStorage.setItem('sgs_despesas', JSON.stringify(json.despesas));
-          alert("✅ Dados restaurados com sucesso! A página será recarregada.");
+          
+          // Lógica de Mesclar ou Substituir
+          if (mode === 'merge') {
+            // Clientes
+            const currentClientes = JSON.parse(localStorage.getItem('sgs_clientes') || '[]');
+            const newClientes = json.clientes || [];
+            // Adiciona apenas se o ID não existir
+            const mergedClientes = [...currentClientes];
+            newClientes.forEach((nc: Cliente) => {
+               if (!mergedClientes.find(c => c.id === nc.id)) {
+                 mergedClientes.push(nc);
+               }
+            });
+            localStorage.setItem('sgs_clientes', JSON.stringify(mergedClientes));
+
+            // Serviços
+            const currentServicos = JSON.parse(localStorage.getItem('sgs_servicos') || '[]');
+            const newServicos = json.servicos || [];
+            const mergedServicos = [...currentServicos];
+            newServicos.forEach((ns: Servico) => {
+               if (!mergedServicos.find(s => s.id === ns.id)) {
+                 mergedServicos.push(ns);
+               }
+            });
+            localStorage.setItem('sgs_servicos', JSON.stringify(mergedServicos));
+
+            // Despesas
+            const currentDespesas = JSON.parse(localStorage.getItem('sgs_despesas') || '[]');
+            const newDespesas = json.despesas || [];
+            const mergedDespesas = [...currentDespesas];
+            newDespesas.forEach((nd: Despesa) => {
+               if (!mergedDespesas.find(d => d.id === nd.id)) {
+                 mergedDespesas.push(nd);
+               }
+            });
+            localStorage.setItem('sgs_despesas', JSON.stringify(mergedDespesas));
+
+            alert("✅ Dados mesclados com sucesso!");
+
+          } else {
+            // Substituir Tudo
+            if (json.clientes) localStorage.setItem('sgs_clientes', JSON.stringify(json.clientes));
+            if (json.servicos) localStorage.setItem('sgs_servicos', JSON.stringify(json.servicos));
+            if (json.despesas) localStorage.setItem('sgs_despesas', JSON.stringify(json.despesas));
+            alert("✅ Dados restaurados (substituídos) com sucesso!");
+          }
+          
+          setIsRestoreModalOpen(false);
           window.location.reload();
+
         } catch (err) {
           alert("❌ Erro ao ler arquivo de backup. O arquivo pode estar corrompido.");
         }
       };
       reader.readAsText(file);
     };
-    // Dispara o clique imediatamente
     input.click();
   };
   
@@ -261,7 +298,7 @@ export default function App() {
       {/* FOOTER FIXO INTELIGENTE */}
       <footer 
         className={`bg-slate-900/90 backdrop-blur text-white py-3 border-t border-slate-800 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] no-print transition-transform duration-300 z-40
-          fixed bottom-0 w-full md:fixed
+          md:fixed bottom-0 w-full relative
           ${showFooter ? 'translate-y-0' : 'translate-y-full'}`}
       >
         <div className="container mx-auto px-4 max-w-[95%] flex flex-col md:flex-row justify-between items-center text-xs md:text-sm gap-2">
@@ -286,7 +323,7 @@ export default function App() {
              <button onClick={handleBackup} className="hover:text-blue-400 transition-colors flex items-center gap-1 text-slate-400 font-bold bg-slate-800/50 px-3 py-1 rounded border border-slate-700 hover:border-blue-500">
                💾 Backup
              </button>
-             <button onClick={handleRestore} className="hover:text-yellow-400 transition-colors flex items-center gap-1 text-slate-400 font-bold bg-slate-800/50 px-3 py-1 rounded border border-slate-700 hover:border-yellow-500">
+             <button onClick={() => setIsRestoreModalOpen(true)} className="hover:text-yellow-400 transition-colors flex items-center gap-1 text-slate-400 font-bold bg-slate-800/50 px-3 py-1 rounded border border-slate-700 hover:border-yellow-500">
                📂 Restaurar
              </button>
           </div>
@@ -303,6 +340,49 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* MODAL DE RESTAURAÇÃO */}
+      {isRestoreModalOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-scale-in">
+            <h3 className="text-xl font-bold text-white mb-2">📂 Restaurar Dados</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              Como você deseja importar o backup?
+            </p>
+            
+            <div className="grid gap-3">
+              <button 
+                onClick={() => processRestore('merge')}
+                className="flex items-center justify-between p-4 rounded-xl bg-blue-600/10 border border-blue-500/30 hover:bg-blue-600/20 transition-colors group"
+              >
+                <div className="text-left">
+                  <span className="block font-bold text-blue-300 group-hover:text-blue-200">➕ Mesclar Dados</span>
+                  <span className="text-xs text-slate-400">Adiciona dados faltantes sem apagar os atuais.</span>
+                </div>
+                <span className="text-2xl">📥</span>
+              </button>
+
+              <button 
+                onClick={() => processRestore('replace')}
+                className="flex items-center justify-between p-4 rounded-xl bg-red-600/10 border border-red-500/30 hover:bg-red-600/20 transition-colors group"
+              >
+                <div className="text-left">
+                  <span className="block font-bold text-red-300 group-hover:text-red-200">⚠️ Substituir Tudo</span>
+                  <span className="text-xs text-slate-400">Apaga TUDO atual e restaura o backup.</span>
+                </div>
+                <span className="text-2xl">🔄</span>
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setIsRestoreModalOpen(false)}
+              className="mt-6 w-full py-3 text-sm font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="container mx-auto px-2 py-6 max-w-[95%] pb-20 relative z-10">
         <header className="text-center mb-6">
