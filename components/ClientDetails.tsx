@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Cliente, Anexo } from '../types';
 
@@ -25,9 +24,11 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
 
     // 1. Criar um iframe invisível
     const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
     iframe.style.border = 'none';
     document.body.appendChild(iframe);
 
@@ -46,14 +47,30 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
             <style>
               @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
               
+              @page {
+                margin: 0;
+                size: auto;
+              }
+
+              html, body {
+                height: 100%;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+              }
+
               body {
                 font-family: 'Inter', sans-serif;
                 background-color: white !important;
                 color: black !important;
-                margin: 0;
-                padding: 20px;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+                padding: 20px !important;
+              }
+              
+              /* Ocultar elementos específicos na impressão */
+              .no-print {
+                display: none !important;
               }
 
               /* Forçar visibilidade do cabeçalho de impressão */
@@ -75,27 +92,22 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
                 color: #666;
               }
               
-              /* Esconder botões e elementos não imprimíveis */
-              .no-print, button {
-                display: none !important;
-              }
-
               /* Resetar cores escuras para preto no papel */
-              .text-white, .text-slate-200, .text-slate-300, .text-slate-400, .text-blue-100, .text-blue-200, .text-blue-300, .text-blue-400, .text-green-300, .text-green-400, .text-yellow-300, .text-cyan-300 {
+              * {
                 color: black !important;
-              }
-
-              .text-slate-500, .text-slate-400 {
-                color: #333 !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+                animation: none !important;
+                transition: none !important;
               }
 
               /* Bordas e Fundos */
-              .border, .border-slate-700, .border-white\\/10, .border-blue-500\\/20 {
+              .border {
                 border-color: #ccc !important;
                 border-width: 1px !important;
               }
               
-              .bg-slate-800\\/50, .bg-slate-900\\/50, .bg-blue-900\\/20 {
+              div {
                 background-color: transparent !important;
               }
 
@@ -107,11 +119,11 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
               /* Ajustes de Texto */
               h3 {
                 border-bottom: 1px solid #000 !important;
-                color: #000 !important;
                 margin-top: 20px !important;
                 margin-bottom: 10px !important;
                 font-size: 16px !important;
                 text-transform: uppercase !important;
+                font-weight: bold !important;
               }
 
               /* Imagens */
@@ -131,9 +143,9 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({ cliente, onClose }
       setTimeout(() => {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
-        // Remover iframe após impressão (opcional, mas bom para limpeza)
-        setTimeout(() => document.body.removeChild(iframe), 2000);
-      }, 800);
+        // Remover iframe após impressão (opcional)
+        setTimeout(() => document.body.removeChild(iframe), 5000);
+      }, 1000);
     }
   };
 
@@ -201,7 +213,7 @@ Procuração: ${cliente.procuracao_status}
         // Abre em nova aba para usar o visualizador nativo (funciona em mobile/pc)
         window.open(blobUrl, '_blank');
         
-        // Limpar a URL depois de um tempo para não vazar memória, mas dando tempo de abrir
+        // Limpar a URL depois de um tempo para não vazar memória
         setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
         
       } catch (e) {
@@ -219,7 +231,7 @@ Procuração: ${cliente.procuracao_status}
   };
 
   const renderAttachmentList = (title: string, status: string, anexos: Anexo[]) => (
-    <div className="border border-slate-700 rounded-xl p-4 bg-slate-800/50 hover:border-blue-500/30 transition-colors">
+    <div className="border border-slate-700 rounded-xl p-4 bg-slate-800/50 hover:border-blue-500/30 transition-colors break-inside-avoid">
       <div className="flex justify-between items-center mb-3">
         <span className="font-bold text-blue-200 text-sm uppercase tracking-wider">{title}</span>
         <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
@@ -289,138 +301,194 @@ Procuração: ${cliente.procuracao_status}
     </div>
   );
 
+  // Construir endereço completo para os links e mapa
+  const fullAddress = `${cliente.logradouro || ''}, ${cliente.numero || ''} - ${cliente.bairro || ''}, ${cliente.cidade || ''}`;
+  const encodedAddress = encodeURIComponent(fullAddress);
+
+  // URLs de navegação
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+  const wazeUrl = `https://waze.com/ul?q=${encodedAddress}`;
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-0 md:p-4 h-full">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm">
         
-        {/* Modal Content */}
+        {/* Modal Container - Altura controlada e Scroll interno */}
         <div 
-          className="bg-slate-900 border border-white/10 md:rounded-2xl shadow-2xl w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] overflow-y-auto flex flex-col"
+          className="bg-slate-900 border border-white/10 w-full h-full md:h-auto md:max-h-[95vh] md:max-w-5xl md:rounded-2xl shadow-2xl flex flex-col relative"
         >
             
-            {/* Header with Actions */}
-            <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-white/10 px-4 md:px-6 py-4 flex justify-between items-center z-10 flex-shrink-0">
-              <h2 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
-                  👤 Detalhes do Cliente
-              </h2>
-              <div className="flex space-x-2">
-                  <button onClick={handleCopy} className="hidden md:flex px-3 py-1.5 bg-blue-500/10 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/20 transition-colors text-xs font-bold uppercase tracking-wide items-center gap-2">
+            {/* Header FIXO - Não rola */}
+            <div className="flex-shrink-0 bg-slate-900/95 backdrop-blur border-b border-white/10 px-4 md:px-6 py-4 flex justify-between items-center z-20 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                  <div className="bg-blue-600/20 p-2 rounded-full hidden md:block">
+                    <span className="text-2xl">👤</span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg md:text-2xl font-black text-white leading-none tracking-tight">
+                        Detalhes do Cliente
+                    </h2>
+                    <p className="text-xs text-blue-300 font-mono mt-1">{cliente.nome}</p>
+                  </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                  <button onClick={handleCopy} className="hidden md:flex px-4 py-2 bg-blue-500/10 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/20 transition-colors text-xs font-bold uppercase tracking-wide items-center gap-2">
                     📋 Copiar
                   </button>
-                  <button onClick={handlePrint} className="px-3 py-1.5 bg-slate-800 text-slate-200 border border-slate-600 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-xs font-bold uppercase tracking-wide flex items-center gap-2">
+                  <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500 shadow-lg shadow-green-600/20 transition-all text-xs font-bold uppercase tracking-wide flex items-center gap-2 transform active:scale-95">
                     🖨️ <span className="hidden md:inline">Imprimir / PDF</span>
                   </button>
-                  <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-                    ✕
+                  <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-colors border border-slate-700 ml-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
               </div>
             </div>
             
-            {/* Printable Content Container (ref for printing) */}
-            <div ref={printRef} className="p-4 md:p-8 space-y-6 md:space-y-8 flex-grow">
-              
-              {/* Header for Print Only (Hidden on Screen via className logic, shown via iframe style) */}
-              <div className="hidden print-header text-center mb-8 border-b-2 border-gray-800 pb-4 pt-4">
-                  <div className="flex items-center justify-center gap-4 mb-2">
-                      <div style={{fontSize: '24px', fontWeight: 'bold'}}>SolarTekPro</div>
-                  </div>
-                  <p className="text-sm text-gray-600 uppercase tracking-[0.3em]">Energias Renováveis</p>
-                  <h2 className="text-xl mt-6 font-bold border px-4 py-1 inline-block rounded bg-gray-100">Ficha Cadastral do Cliente</h2>
-              </div>
+            {/* Content Scrollable - Apenas esta área rola */}
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-8 bg-slate-900">
+                <div ref={printRef} className="space-y-8">
+                
+                    {/* Header for Print Only */}
+                    <div className="hidden print-header text-center mb-8 border-b-2 border-gray-800 pb-4 pt-4">
+                        <div className="flex items-center justify-center gap-4 mb-2">
+                            <div style={{fontSize: '24px', fontWeight: 'bold'}}>SolarTekPro</div>
+                        </div>
+                        <p className="text-sm text-gray-600 uppercase tracking-[0.3em]">Energias Renováveis</p>
+                        <h2 className="text-xl mt-6 font-bold border px-4 py-1 inline-block rounded bg-gray-100">Ficha Cadastral do Cliente</h2>
+                    </div>
 
-              {/* Section 1: Personal */}
-              <section>
-                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
-                    Dados Pessoais
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 text-base">
-                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Nome Completo</span><span className="font-bold text-white text-lg">{cliente.nome}</span></div>
-                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">CPF/CNPJ</span><span className="font-medium text-slate-200 font-mono text-lg">{cliente.cpf}</span></div>
-                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Telefone</span><span className="font-medium text-slate-200 text-lg">{cliente.telefone}</span></div>
-                    <div><span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Email</span><span className="font-medium text-slate-200 text-lg">{cliente.email || '-'}</span></div>
-                    <div className="md:col-span-2 bg-slate-800/50 p-5 rounded-xl border border-slate-700">
-                        <span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Endereço Completo</span>
-                        <span className="font-bold text-white block text-lg">
-                          {cliente.logradouro}, {cliente.numero} {cliente.complemento ? `- ${cliente.complemento}` : ''}
-                        </span>
-                        <span className="text-slate-300 block text-base mt-1">
-                          {cliente.bairro} - {cliente.cidade} / CEP: {cliente.cep}
-                        </span>
-                        {cliente.ponto_referencia && (
-                          <span className="block mt-3 text-sm text-green-300 italic border-t border-slate-700 pt-2">
-                              Ref: {cliente.ponto_referencia}
-                          </span>
-                        )}
-                    </div>
-                  </div>
-              </section>
+                    {/* Section 1: Personal */}
+                    <section>
+                        <h3 className="text-lg font-black text-green-400 uppercase tracking-wider mb-6 flex items-center gap-2 border-b border-slate-700 pb-3">
+                            <span className="text-xl">📋</span> Dados Pessoais
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">Nome Completo</span><span className="font-bold text-white text-xl block bg-slate-800/50 p-2 rounded border border-slate-700/50">{cliente.nome}</span></div>
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">CPF/CNPJ</span><span className="font-medium text-slate-200 font-mono text-xl block bg-slate-800/50 p-2 rounded border border-slate-700/50">{cliente.cpf}</span></div>
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">Telefone</span><span className="font-medium text-slate-200 text-xl block bg-slate-800/50 p-2 rounded border border-slate-700/50">{cliente.telefone}</span></div>
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">Email</span><span className="font-medium text-slate-200 text-xl block bg-slate-800/50 p-2 rounded border border-slate-700/50 truncate">{cliente.email || '-'}</span></div>
+                            
+                            <div className="md:col-span-2 bg-slate-800/30 p-6 rounded-2xl border border-slate-700/50 relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <span className="text-xs text-green-400 block uppercase font-bold mb-2 tracking-wide">Localização</span>
+                                    <span className="font-bold text-white block text-xl md:text-2xl leading-tight mb-1">
+                                    {fullAddress}
+                                    </span>
+                                    <span className="text-slate-400 block text-base mb-3">
+                                    CEP: {cliente.cep}
+                                    </span>
+                                    {cliente.ponto_referencia && (
+                                    <span className="block mt-2 text-sm text-blue-300 italic border-t border-slate-700/50 pt-2">
+                                        <span className="font-bold not-italic text-slate-400">Referência:</span> {cliente.ponto_referencia}
+                                    </span>
+                                    )}
+                                    
+                                    {/* GOOGLE MAPS EMBED - VISUAL */}
+                                    <div className="mt-4 rounded-xl overflow-hidden border border-slate-700 h-48 w-full no-print">
+                                        <iframe
+                                            width="100%"
+                                            height="100%"
+                                            style={{ border: 0 }}
+                                            loading="lazy"
+                                            allowFullScreen
+                                            src={`https://maps.google.com/maps?q=${encodedAddress}&output=embed`}
+                                        ></iframe>
+                                    </div>
 
-              {/* Section 2: Technical */}
-              <section className="mt-10">
-                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
-                    Dados da Instalação
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 bg-blue-900/20 rounded-xl border border-blue-500/20">
-                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">UC</span><span className="font-bold text-white font-mono text-xl">{cliente.unidade_consumidora}</span></div>
-                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">Concessionária</span><span className="font-bold text-white text-lg">{cliente.concessionaria}</span></div>
-                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">Disjuntor</span><span className="font-bold text-white text-lg">{cliente.disjuntor_padrao}</span></div>
-                    <div><span className="text-xs text-blue-300 block uppercase font-semibold mb-1">Sistema</span><span className="font-bold text-white text-lg">{cliente.tipo_sistema}</span></div>
-                  </div>
-              </section>
+                                    {/* NAVIGATION BUTTONS */}
+                                    <div className="mt-4 pt-4 border-t border-slate-700/50 grid grid-cols-2 gap-4 no-print">
+                                        <a 
+                                            href={mapsUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg hover:shadow-blue-600/30 font-bold text-sm uppercase tracking-wide group"
+                                        >
+                                            <svg className="w-5 h-5 group-hover:animate-bounce" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                                            Abrir no Maps
+                                        </a>
+                                        <a 
+                                            href={wazeUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-center gap-2 px-4 py-3 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl transition-all shadow-lg hover:shadow-cyan-500/30 font-bold text-sm uppercase tracking-wide group"
+                                        >
+                                            <svg className="w-5 h-5 group-hover:animate-bounce" fill="currentColor" viewBox="0 0 24 24"><path d="M18.5 6C17 6 16 7.5 16 8C16 8.5 15.5 9 15 9C14.5 9 14 8.5 14 8C14 6 13 4 11 4C8 4 6 6 6 9C6 10.5 6.5 11.5 7.5 12.5C7.5 12.5 7 15 9 17C10 18 12 18 14 17C15.5 16.5 16.5 15.5 17 14.5C18.5 14.5 19.5 13.5 20.5 12.5C22 11 22.5 9 21.5 7.5C20.5 6 18.5 6 18.5 6ZM9.5 10C8.7 10 8 9.3 8 8.5C8 7.7 8.7 7 9.5 7C10.3 7 11 7.7 11 8.5C11 9.3 10.3 10 9.5 10ZM15.5 10C14.7 10 14 9.3 14 8.5C14 7.7 14.7 7 15.5 7C16.3 7 17 7.7 17 8.5C17 9.3 16.3 10 15.5 10Z"/></svg>
+                                            Abrir no Waze
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
-              {/* Section 3: Project Status */}
-              <section className="mt-10">
-                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
-                    Status do Projeto
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Status Atual</span>
-                        <span className={`inline-block px-5 py-2 rounded-full text-base font-bold mt-1 border ${
-                          cliente.status === 'Concluído' ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                        }`}>
-                          {cliente.status}
-                        </span>
-                    </div>
-                    <div>
-                        <span className="text-sm text-blue-200/70 block uppercase font-semibold mb-1">Tempo Gasto</span>
-                        <span className="font-bold text-white text-lg">{cliente.tempo_projeto} horas</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                        <span className="text-xs text-slate-400 block uppercase mb-1">Entrada Homologação</span>
-                        <span className="font-bold text-white text-lg">{formatDate(cliente.data_entrada_homologacao)}</span>
-                    </div>
-                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                        <span className="text-xs text-slate-400 block uppercase mb-1">Resposta Concessionária</span>
-                        <span className="font-bold text-white text-lg">{formatDate(cliente.data_resposta_concessionaria)}</span>
-                    </div>
-                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                        <span className="text-xs text-slate-400 block uppercase mb-1">Data Vistoria</span>
-                        <span className="font-bold text-white text-lg">{formatDate(cliente.data_vistoria)}</span>
-                    </div>
-                  </div>
-              </section>
+                    {/* Section 2: Technical */}
+                    <section>
+                        <h3 className="text-lg font-black text-green-400 uppercase tracking-wider mb-6 flex items-center gap-2 border-b border-slate-700 pb-3">
+                            <span className="text-xl">⚡</span> Dados da Instalação
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 bg-blue-900/10 rounded-2xl border border-blue-500/20">
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">UC</span><span className="font-black text-white font-mono text-xl">{cliente.unidade_consumidora}</span></div>
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">Concessionária</span><span className="font-bold text-white text-lg">{cliente.concessionaria}</span></div>
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">Disjuntor</span><span className="font-bold text-white text-lg">{cliente.disjuntor_padrao}</span></div>
+                            <div><span className="text-xs text-blue-300 block uppercase font-bold mb-1 tracking-wide">Sistema</span><span className="font-bold text-white text-lg">{cliente.tipo_sistema}</span></div>
+                        </div>
+                    </section>
 
-              {/* Section 4: Docs & Attachments */}
-              <section className="mt-10">
-                  <h3 className="text-base font-bold text-green-400 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-700 pb-2">
-                    Documentos & Anexos
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {renderAttachmentList('RG/CNH', cliente.doc_identificacao_status, cliente.anexos_identificacao)}
-                      {renderAttachmentList('Conta Energia', cliente.conta_energia_status, cliente.anexos_conta)}
-                      {renderAttachmentList('Procuração', cliente.procuracao_status, cliente.anexos_procuracao)}
-                      {renderAttachmentList('Outros', cliente.outras_imagens_status, cliente.anexos_outras_imagens)}
-                  </div>
-              </section>
+                    {/* Section 3: Project Status */}
+                    <section>
+                        <h3 className="text-lg font-black text-green-400 uppercase tracking-wider mb-6 flex items-center gap-2 border-b border-slate-700 pb-3">
+                            <span className="text-xl">🚀</span> Status do Projeto
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                                <span className="text-xs text-blue-300 block uppercase font-bold mb-1">Status Atual</span>
+                                <span className={`inline-block px-4 py-1.5 rounded-full text-base font-bold mt-1 border ${
+                                cliente.status === 'Concluído' ? 'bg-green-500/20 text-green-300 border-green-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                                }`}>
+                                {cliente.status}
+                                </span>
+                            </div>
+                            <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                                <span className="text-xs text-blue-300 block uppercase font-bold mb-1">Tempo Gasto</span>
+                                <span className="font-black text-white text-2xl">{cliente.tempo_projeto} <span className="text-sm text-slate-400 font-normal">horas</span></span>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-700 hover:border-blue-500/30 transition-colors">
+                                <span className="text-xs text-slate-400 block uppercase mb-1 font-bold">Entrada Homologação</span>
+                                <span className="font-bold text-white text-lg">{formatDate(cliente.data_entrada_homologacao)}</span>
+                            </div>
+                            <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-700 hover:border-blue-500/30 transition-colors">
+                                <span className="text-xs text-slate-400 block uppercase mb-1 font-bold">Resposta Concessionária</span>
+                                <span className="font-bold text-white text-lg">{formatDate(cliente.data_resposta_concessionaria)}</span>
+                            </div>
+                            <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-700 hover:border-blue-500/30 transition-colors">
+                                <span className="text-xs text-slate-400 block uppercase mb-1 font-bold">Data Vistoria</span>
+                                <span className="font-bold text-white text-lg">{formatDate(cliente.data_vistoria)}</span>
+                            </div>
+                        </div>
+                    </section>
 
-              {/* Footer Print */}
-              <div className="hidden print-footer mt-8 pt-8 border-t text-center text-xs text-gray-400">
-                  <p>Relatório gerado pelo Sistema de Gestão SolarTekPro em {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</p>
-              </div>
+                    {/* Section 4: Docs & Attachments */}
+                    <section>
+                        <h3 className="text-lg font-black text-green-400 uppercase tracking-wider mb-6 flex items-center gap-2 border-b border-slate-700 pb-3">
+                            <span className="text-xl">📂</span> Documentos & Anexos
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {renderAttachmentList('RG/CNH', cliente.doc_identificacao_status, cliente.anexos_identificacao)}
+                            {renderAttachmentList('Conta Energia', cliente.conta_energia_status, cliente.anexos_conta)}
+                            {renderAttachmentList('Procuração', cliente.procuracao_status, cliente.anexos_procuracao)}
+                            {renderAttachmentList('Outros', cliente.outras_imagens_status, cliente.anexos_outras_imagens)}
+                        </div>
+                    </section>
+
+                    {/* Footer Print */}
+                    <div className="hidden print-footer mt-8 pt-8 border-t text-center text-xs text-gray-400">
+                        <p>Relatório gerado pelo Sistema de Gestão SolarTekPro em {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}</p>
+                    </div>
+                </div>
             </div>
         </div>
       </div>

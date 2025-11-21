@@ -9,8 +9,52 @@ interface ClientFormProps {
   onSave: () => void;
 }
 
+// --- FUNÇÕES AUXILIARES DE CONVERSÃO UTM ---
+// Conversão simplificada WGS84 para UTM
+function latLonToUTM(lat: number, lon: number) {
+  if (!(-80 <= lat && lat <= 84)) return null;
+  const falseEasting = 500000.0;
+  const falseNorthing = lat < 0 ? 10000000.0 : 0.0;
+  const semiMajor = 6378137.0;
+  const flattening = 1 / 298.257223563;
+  const zone = Math.floor((lon + 180.0) / 6) + 1;
+  const centralMeridian = (zone - 1) * 6 - 180 + 3;
+  const latRad = lat * (Math.PI / 180);
+  const lonRad = lon * (Math.PI / 180);
+  const cmRad = centralMeridian * (Math.PI / 180);
+  const k0 = 0.9996;
+  
+  const eSq = flattening * (2 - flattening);
+  const ePrimeSq = eSq / (1 - eSq);
+  const N = semiMajor / Math.sqrt(1 - eSq * Math.sin(latRad) * Math.sin(latRad));
+  const T = Math.tan(latRad) * Math.tan(latRad);
+  const C = ePrimeSq * Math.cos(latRad) * Math.cos(latRad);
+  const A = (lonRad - cmRad) * Math.cos(latRad);
+  const M = semiMajor * ((1 - eSq / 4 - 3 * eSq * eSq / 64 - 5 * eSq * eSq * eSq / 256) * latRad
+      - (3 * eSq / 8 + 3 * eSq * eSq / 32 + 45 * eSq * eSq * eSq / 1024) * Math.sin(2 * latRad)
+      + (15 * eSq * eSq / 256 + 45 * eSq * eSq * eSq / 1024) * Math.sin(4 * latRad)
+      - (35 * eSq * eSq * eSq / 3072) * Math.sin(6 * latRad));
+  
+  const easting = falseEasting + k0 * N * (A + (1 - T + C) * A * A * A / 6
+      + (5 - 18 * T + T * T + 72 * C - 58 * ePrimeSq) * A * A * A * A * A / 120);
+  const northing = falseNorthing + k0 * (M + N * Math.tan(latRad) * (A * A / 2
+      + (5 - T + 9 * C + 4 * C * C) * A * A * A * A / 24
+      + (61 - 58 * T + T * T + 600 * C - 330 * ePrimeSq) * A * A * A * A * A * A / 720));
+
+  // Determinar letra da zona (Aproximado)
+  const letters = 'CDEFGHJKLMNPQRSTUVWXX';
+  const letterIndex = Math.floor((lat + 80) / 8);
+  const letter = letters[letterIndex] || 'X';
+
+  return {
+    easting: easting.toFixed(2),
+    northing: northing.toFixed(2),
+    zone: `${zone}${letter}`
+  };
+}
+
 // --- COMPONENTES AUXILIARES (Definidos fora para evitar re-renderização) ---
-const InputField = ({ label, name, value, type = "text", required = false, onChange, maxLength, placeholder, list, className = "col-span-12", autoComplete }: any) => (
+const InputField = ({ label, name, value, type = "text", onChange, maxLength, placeholder, list, className = "col-span-12", autoComplete, readOnly }: any) => (
   <div className={className}>
     <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">{label}</label>
     <input 
@@ -18,12 +62,12 @@ const InputField = ({ label, name, value, type = "text", required = false, onCha
       name={name} 
       value={value || ''} 
       onChange={onChange} 
-      required={required}
       maxLength={maxLength}
       placeholder={placeholder}
       list={list}
       autoComplete={autoComplete}
-      className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 focus:ring-1 py-2.5 px-3 text-base border transition-all placeholder-slate-500" 
+      readOnly={readOnly}
+      className={`block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 focus:ring-1 py-2.5 px-3 text-base border transition-all placeholder-slate-500 ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`} 
     />
   </div>
 );
@@ -45,6 +89,9 @@ const initialCliente: Cliente = {
   concessionaria: '',
   disjuntor_padrao: '',
   tipo_sistema: '',
+  utm_norte: '',
+  utm_leste: '',
+  utm_zona: '',
   tempo_projeto: 0,
   data_entrada_homologacao: '',
   data_resposta_concessionaria: '',
@@ -99,6 +146,8 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   const [formData, setFormData] = useState<Cliente>(initialCliente);
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [findingLocation, setFindingLocation] = useState(false);
   
   const numeroInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,14 +170,6 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   // Lógica automática de status baseada nas datas
   useEffect(() => {
     setFormData(prev => {
-      const newDatasEtapas = { ...prev.datas_etapas };
-      let newStatus = prev.status;
-
-      // Verifica datas para atualizar status automaticamente se necessário
-      if (prev.data_vistoria && !newDatasEtapas['Concluído']) {
-         // Apenas sugestão, mantemos o controle manual como prioritário ou híbrido
-      }
-
       // Se nada mudou, retorna o estado anterior para evitar loop
       return prev;
     });
@@ -163,6 +204,37 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
     return v;
   };
 
+  const buscarGeolocalizacao = async (logradouro: string, cidade: string, uf: string = "") => {
+    setFindingLocation(true);
+    try {
+      // Busca coordenadas no OpenStreetMap (Nominatim)
+      const query = `${logradouro}, ${cidade}, Brasil`;
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const data = await res.json();
+
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        
+        // Converter para UTM
+        const utm = latLonToUTM(lat, lon);
+        
+        if (utm) {
+          setFormData(prev => ({
+            ...prev,
+            utm_norte: utm.northing,
+            utm_leste: utm.easting,
+            utm_zona: utm.zone
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao buscar geolocalização", error);
+    } finally {
+      setFindingLocation(false);
+    }
+  };
+
   const buscarEndereco = async (cep: string) => {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length === 8) {
@@ -177,6 +249,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
             cidade: data.localidade,
             complemento: prev.complemento || data.complemento
           }));
+          
+          // Após obter endereço, buscar coordenadas UTM
+          if (data.logradouro && data.localidade) {
+            buscarGeolocalizacao(data.logradouro, data.localidade, data.uf);
+          }
+
           // Focar no número após preencher
           setTimeout(() => {
             if (numeroInputRef.current) {
@@ -226,10 +304,11 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, tipo: 'identificacao' | 'conta' | 'procuracao' | 'outras') => {
     if (!e.target.files || e.target.files.length === 0) return;
     
+    setLoading(true);
     const files = Array.from(e.target.files) as File[];
     const newAnexos: Anexo[] = [];
     
-    // Limite de 15MB por arquivo (verificado antes de processar)
+    // Limite de 15MB por arquivo
     const MAX_SIZE_MB = 15; 
 
     for (const file of files) {
@@ -265,6 +344,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
       const currentList = prev[key] as Anexo[];
       return { ...prev, [key]: [...currentList, ...newAnexos] };
     });
+    setLoading(false);
   };
 
   const removeAnexo = (tipo: 'identificacao' | 'conta' | 'procuracao' | 'outras', id: string) => {
@@ -284,16 +364,33 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSaveMessage(null);
+    
     try {
-      const updatedData = { ...formData };
-      await StorageService.saveCliente(updatedData);
-      onSave();
+      // Clone limpo
+      const updatedData = JSON.parse(JSON.stringify(formData));
+      
+      console.log("Tentando salvar dados:", updatedData);
+
+      try {
+        await StorageService.saveCliente(updatedData);
+        // Fallback para LocalStorage já implementado no Service se firebase falhar
+      } catch (dbError) {
+        console.error("Erro específico no banco:", dbError);
+        throw new Error("Falha na persistência.");
+      }
+
+      setSaveMessage("✅ Cliente salvo com sucesso!");
+      setTimeout(() => {
+        onSave();
+      }, 1000);
+
     } catch (error: any) {
-      console.error("Erro ao salvar", error);
+      console.error("Erro ao salvar geral:", error);
       if (error.message === "LIMITE_ATINGIDO") {
-        alert("⚠️ ESPAÇO CHEIO!\n\nNão foi possível salvar porque o limite de armazenamento do navegador foi atingido.\n\nSOLUÇÃO:\n1. Exclua alguns anexos ou clientes antigos.\n2. Tente anexar menos fotos ou fotos menores.");
+        alert("⚠️ ESPAÇO CHEIO!\nLimite de armazenamento atingido.");
       } else {
-        alert("Erro ao salvar cliente. Tente novamente.");
+        alert(`Erro ao salvar: ${error.message || "Tente novamente."}`);
       }
     } finally {
       setLoading(false);
@@ -332,15 +429,15 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   );
 
   const renderDadosPessoais = () => (
-    <div className="grid grid-cols-12 gap-3 animate-fade-in">
+    <div className="grid grid-cols-12 gap-3 animate-fade-in pb-24">
       {/* Linha 1: Nome, CPF, Telefone */}
-      <InputField className="col-span-12 md:col-span-5" label="Nome Completo *" name="nome" value={formData.nome} onChange={handleChange} required autoComplete="name" />
-      <InputField className="col-span-12 md:col-span-3" label="CPF/CNPJ *" name="cpf" value={formData.cpf} onChange={handleChange} required maxLength={18} placeholder="000.000.000-00" />
-      <InputField className="col-span-12 md:col-span-4" label="Telefone *" name="telefone" value={formData.telefone} onChange={handleChange} required maxLength={15} placeholder="(00) 00000-0000" autoComplete="tel" />
+      <InputField className="col-span-12 md:col-span-5" label="Nome Completo" name="nome" value={formData.nome} onChange={handleChange} autoComplete="name" />
+      <InputField className="col-span-12 md:col-span-3" label="CPF/CNPJ" name="cpf" value={formData.cpf} onChange={handleChange} maxLength={18} placeholder="000.000.000-00" />
+      <InputField className="col-span-12 md:col-span-4" label="Telefone" name="telefone" value={formData.telefone} onChange={handleChange} maxLength={15} placeholder="(00) 00000-0000" autoComplete="tel" />
 
       {/* Linha 2: Email, CEP, Número, Complemento */}
       <InputField className="col-span-12 md:col-span-4" label="Email" name="email" value={formData.email} type="email" onChange={handleChange} autoComplete="email" />
-      <InputField className="col-span-6 md:col-span-2" label="CEP *" name="cep" value={formData.cep} onChange={handleChange} required maxLength={9} placeholder="00000-000" autoComplete="postal-code" />
+      <InputField className="col-span-6 md:col-span-2" label="CEP" name="cep" value={formData.cep} onChange={handleChange} maxLength={9} placeholder="00000-000" autoComplete="postal-code" />
       <div className="col-span-6 md:col-span-2">
         <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Número</label>
         <input 
@@ -379,12 +476,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   );
 
   const renderInstalacao = () => (
-    <div className="grid grid-cols-12 gap-4">
-      <InputField className="col-span-12 md:col-span-3" label="Unidade Consumidora *" name="unidade_consumidora" value={formData.unidade_consumidora} onChange={handleChange} required />
+    <div className="grid grid-cols-12 gap-4 pb-24">
+      <InputField className="col-span-12 md:col-span-3" label="Unidade Consumidora" name="unidade_consumidora" value={formData.unidade_consumidora} onChange={handleChange} />
       
       <div className="col-span-12 md:col-span-3">
-        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Concessionária *</label>
-        <select name="concessionaria" value={formData.concessionaria} onChange={handleChange} required className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 py-2.5 px-3 text-base border">
+        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Concessionária</label>
+        <select name="concessionaria" value={formData.concessionaria} onChange={handleChange} className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 py-2.5 px-3 text-base border">
           <option value="">Selecione...</option>
           <optgroup label="Rio Grande do Sul (Destaque)">
             {['CEEE EQUATORIAL', 'RGE', 'CERTEL', 'COPREL', 'CERILUZ', 'NOVA PALMA', 'MUXFELDT', 'HIDROPAN', 'ELETROCAR', 'DEMEI'].map(c => <option key={c} value={c}>{c}</option>)}
@@ -396,20 +493,34 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
       </div>
 
       <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Disjuntor *</label>
-        <select name="disjuntor_padrao" value={formData.disjuntor_padrao} onChange={handleChange} required className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 py-2.5 px-3 text-base border">
+        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Disjuntor</label>
+        <select name="disjuntor_padrao" value={formData.disjuntor_padrao} onChange={handleChange} className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 py-2.5 px-3 text-base border">
            <option value="">Selecione...</option>
            {['25A', '32A', '40A', '50A', '63A', '70A', '80A', '100A', '125A', '150A', '200A'].map(v => <option key={v} value={v}>{v}</option>)}
         </select>
       </div>
 
       <div className="col-span-12 md:col-span-4">
-        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Tipo Sistema *</label>
-        <select name="tipo_sistema" value={formData.tipo_sistema} onChange={handleChange} required className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 py-2.5 px-3 text-base border">
+        <label className="block text-xs font-bold text-slate-400 mb-1 uppercase tracking-wide">Tipo Sistema</label>
+        <select name="tipo_sistema" value={formData.tipo_sistema} onChange={handleChange} className="block w-full rounded-lg bg-slate-700/50 border-slate-600 text-white shadow-inner focus:border-blue-500 focus:ring-blue-500 py-2.5 px-3 text-base border">
            <option value="">Selecione...</option>
            {['MONOFÁSICO 127V', 'MONOFÁSICO 220V', 'BIFÁSICO 127V/220V', 'BIFÁSICO 220V/380V', 'TRIFÁSICO 127V/220V', 'TRIFÁSICO 220V/380V', 'TRIFÁSICO 240V/415V'].map(v => <option key={v} value={v}>{v}</option>)}
         </select>
       </div>
+
+      {/* CAMPOS UTM AUTOMÁTICOS */}
+      <div className="col-span-12 border-t border-slate-700 mt-4 pt-4">
+        <h4 className="text-xs font-bold text-green-400 uppercase mb-3 flex items-center gap-2">
+          📍 Coordenadas de Instalação (UTM)
+          {findingLocation && <span className="text-[10px] text-slate-400 animate-pulse">(Buscando automaticamente...)</span>}
+        </h4>
+        <div className="grid grid-cols-3 gap-4">
+           <InputField label="Coordenada N (Norte)" name="utm_norte" value={formData.utm_norte} onChange={handleChange} className="col-span-1" />
+           <InputField label="Coordenada E (Leste)" name="utm_leste" value={formData.utm_leste} onChange={handleChange} className="col-span-1" />
+           <InputField label="Zona UTM" name="utm_zona" value={formData.utm_zona} onChange={handleChange} className="col-span-1" />
+        </div>
+      </div>
+
     </div>
   );
 
@@ -451,7 +562,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   );
 
   const renderDocumentos = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-24">
       {renderUploadSection('RG/CNH', 'doc_identificacao_status', 'identificacao', formData.anexos_identificacao)}
       {renderUploadSection('Conta Energia', 'conta_energia_status', 'conta', formData.anexos_conta)}
       {renderUploadSection('Procuração', 'procuracao_status', 'procuracao', formData.anexos_procuracao)}
@@ -516,7 +627,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   };
 
   const renderProjeto = () => (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pb-24">
       <InputField label="Tempo Gasto (h)" name="tempo_projeto" type="number" value={formData.tempo_projeto} onChange={handleChange} className="col-span-2 md:col-span-1" />
       <InputField label="Entrada Homolog." name="data_entrada_homologacao" type="date" value={formData.data_entrada_homologacao} onChange={handleChange} className="col-span-2 md:col-span-1" />
       <InputField label="Resp. Concessionária" name="data_resposta_concessionaria" type="date" value={formData.data_resposta_concessionaria} onChange={handleChange} className="col-span-2 md:col-span-1" />
@@ -539,42 +650,52 @@ export const ClientForm: React.FC<ClientFormProps> = ({ clienteEditando, onCance
   );
 
   return (
-    <div className="bg-slate-900/80 backdrop-blur-md shadow-2xl rounded-2xl p-8 max-w-7xl mx-auto border border-white/10">
+    <div className="bg-slate-900/80 backdrop-blur-md shadow-2xl rounded-2xl p-4 md:p-8 max-w-7xl mx-auto border border-white/10 relative min-h-[600px]">
       <h2 className="text-2xl font-black text-white mb-6 flex items-center gap-3 border-b border-white/10 pb-4">
         <span className="text-3xl">{clienteEditando ? '✏️' : '👤'}</span>
         {clienteEditando ? 'Editar Cliente' : 'Novo Cliente'}
       </h2>
-      <form onSubmit={handleSubmit}>
+      
+      <form onSubmit={handleSubmit} noValidate>
         {renderTabs()}
         
-        <div className="min-h-[400px]">
-          {currentStep === 1 && renderDadosPessoais()}
-          {currentStep === 2 && renderInstalacao()}
-          {currentStep === 3 && renderDocumentos()}
-          {currentStep === 4 && renderProjeto()}
+        {currentStep === 1 && renderDadosPessoais()}
+        {currentStep === 2 && renderInstalacao()}
+        {currentStep === 3 && renderDocumentos()}
+        {currentStep === 4 && renderProjeto()}
+
+        {/* BARRA FLUTUANTE DE BOTÕES */}
+        <div className="fixed bottom-0 left-0 w-full bg-slate-900/95 backdrop-blur border-t border-white/10 p-4 z-[80] flex justify-center shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+           <div className="flex gap-4 w-full max-w-4xl justify-between items-center">
+              <button type="button" onClick={onCancel} className="px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-sm font-bold uppercase tracking-wide">
+                CANCELAR
+              </button>
+              
+              <div className="flex gap-4">
+                {currentStep > 1 && (
+                  <button type="button" onClick={() => setCurrentStep(prev => prev - 1)} className="px-8 py-3 bg-slate-800 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-sm font-bold uppercase tracking-wide">
+                    VOLTAR
+                  </button>
+                )}
+                
+                {currentStep < 4 ? (
+                  <button type="button" onClick={() => setCurrentStep(prev => prev + 1)} className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 hover:shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all text-sm font-bold uppercase tracking-wide">
+                    PRÓXIMO
+                  </button>
+                ) : (
+                  <button 
+                    type="button" // Importante: ser type="button" para controlar o clique
+                    onClick={handleSubmit} // Chama o submit manualmente
+                    disabled={loading} 
+                    className="px-10 py-3 bg-green-600 text-white rounded-lg hover:bg-green-500 hover:shadow-[0_0_15px_rgba(22,163,74,0.5)] transition-all text-sm font-bold uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                  >
+                    {loading ? 'SALVANDO...' : (saveMessage || 'SALVAR CLIENTE')}
+                  </button>
+                )}
+              </div>
+           </div>
         </div>
 
-        <div className="flex justify-between mt-8 pt-6 border-t border-white/10">
-          <button type="button" onClick={onCancel} className="px-6 py-2.5 bg-slate-800 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-sm font-bold uppercase tracking-wide">
-            Cancelar
-          </button>
-          <div className="space-x-3">
-            {currentStep > 1 && (
-              <button type="button" onClick={() => setCurrentStep(prev => prev - 1)} className="px-6 py-2.5 bg-slate-800 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-700 hover:text-white transition-colors text-sm font-bold uppercase tracking-wide">
-                Voltar
-              </button>
-            )}
-            {currentStep < 4 ? (
-              <button type="button" onClick={() => setCurrentStep(prev => prev + 1)} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-500 hover:shadow-[0_0_15px_rgba(37,99,235,0.5)] transition-all text-sm font-bold uppercase tracking-wide">
-                Próximo
-              </button>
-            ) : (
-              <button type="submit" disabled={loading} className="px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-500 hover:shadow-[0_0_15px_rgba(22,163,74,0.5)] transition-all text-sm font-bold uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed">
-                {loading ? 'Salvando...' : 'Salvar Cliente'}
-              </button>
-            )}
-          </div>
-        </div>
       </form>
     </div>
   );

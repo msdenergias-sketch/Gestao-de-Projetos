@@ -36,11 +36,18 @@ export interface Cliente {
   complemento: string;
   bairro: string;
   cidade: string;
-  ponto_referencia?: string; // Campo novo
+  ponto_referencia?: string;
+  
+  // Dados Técnicos / Instalação
   unidade_consumidora: string;
   concessionaria: string;
   disjuntor_padrao: string;
   tipo_sistema: string;
+  // Novos campos UTM
+  utm_norte: string;   // Latitude UTM (Northing)
+  utm_leste: string;   // Longitude UTM (Easting)
+  utm_zona: string;    // Zona UTM (ex: 22J)
+
   tempo_projeto: number;
   data_entrada_homologacao: string;
   data_resposta_concessionaria: string;
